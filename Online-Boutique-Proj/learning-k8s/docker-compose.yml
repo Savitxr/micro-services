@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: learning-k8s-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: boutique_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/seed-data.sql:/docker-entrypoint-initdb.d/02-seed-data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - learning-k8s-net
+
+  product-catalog:
+    build:
+      context: ./services/product-catalog
+      dockerfile: Dockerfile
+    container_name: learning-k8s-product-catalog
+    environment:
+      PORT: 3550
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: boutique_db
+    ports:
+      - "3550:3550"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - learning-k8s-net
+
+  cart-service:
+    build:
+      context: ./services/cart
+      dockerfile: Dockerfile
+    container_name: learning-k8s-cart
+    environment:
+      ASPNETCORE_URLS: http://+:7070
+      ConnectionStrings__DefaultConnection: "Server=postgres;Port=5432;Database=boutique_db;User Id=postgres;Password=postgres;"
+    ports:
+      - "7070:7070"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - learning-k8s-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: learning-k8s-frontend
+    environment:
+      PORT: 8080
+      PRODUCT_CATALOG_SERVICE_ADDR: product-catalog:3550
+      CART_SERVICE_ADDR: cart-service:7070
+      CURRENCY_SERVICE_ADDR: currency-service:7000
+      RECOMMENDATION_SERVICE_ADDR: recommendation-service:8081
+      CHECKOUT_SERVICE_ADDR: checkout-service:5050
+      SHIPPING_SERVICE_ADDR: shipping-service:50051
+      AD_SERVICE_ADDR: ad-service:9555
+    ports:
+      - "8080:8080"
+    depends_on:
+      - product-catalog
+      - cart-service
+    networks:
+      - learning-k8s-net
+
+volumes:
+  postgres_data:
+
+networks:
+  learning-k8s-net:
+    driver: bridge
