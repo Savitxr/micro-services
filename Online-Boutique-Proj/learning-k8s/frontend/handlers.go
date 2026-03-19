@@ -52,11 +52,7 @@ var validEnvs = []string{"local", "gcp", "azure", "aws", "onprem", "alibaba"}
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
-	currencies, err := fe.getCurrencies(r.Context())
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
-		return
-	}
+	currencies := []string{"USD"}
 	products, err := fe.getProducts(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve products"), http.StatusInternalServerError)
@@ -74,11 +70,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ps := make([]productView, len(products))
 	for i, p := range products {
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
-		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "failed to do currency conversion for product %s", p.GetId()), http.StatusInternalServerError)
-			return
-		}
+		price := p.GetPriceUsd() // No currency conversion, assume USD
 		ps[i] = productView{p, price}
 	}
 
@@ -101,12 +93,12 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	plat.setPlatformDetails(strings.ToLower(env))
 
 	if err := templates.ExecuteTemplate(w, "home", injectCommonTemplateData(r, map[string]interface{}{
-		"show_currency": true,
+		"show_currency": false, // Disable currency selection
 		"currencies":    currencies,
 		"products":      ps,
 		"cart_size":     cartSize(cart),
 		"banner_color":  os.Getenv("BANNER_COLOR"), // illustrates canary deployments
-		"ad":            fe.chooseAd(r.Context(), []string{}, log),
+		"ad":            nil, // No ads
 	})); err != nil {
 		log.Error(err)
 	}
@@ -149,11 +141,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve product"), http.StatusInternalServerError)
 		return
 	}
-	currencies, err := fe.getCurrencies(r.Context())
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
-		return
-	}
+	currencies := []string{"USD"}
 
 	cart, err := fe.getCart(r.Context(), sessionID(r))
 	if err != nil {
@@ -161,17 +149,10 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to convert currency"), http.StatusInternalServerError)
-		return
-	}
+	price := p.GetPriceUsd() // No currency conversion
 
-	// ignores the error retrieving recommendations since it is not critical
-	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
-	if err != nil {
-		log.WithField("error", err).Warn("failed to get product recommendations")
-	}
+	// No recommendations
+	recommendations := []*pb.Product{}
 
 	product := struct {
 		Item  *pb.Product
@@ -189,8 +170,8 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := templates.ExecuteTemplate(w, "product", injectCommonTemplateData(r, map[string]interface{}{
-		"ad":              fe.chooseAd(r.Context(), p.Categories, log),
-		"show_currency":   true,
+		"ad":              nil, // No ads
+		"show_currency":   false,
 		"currencies":      currencies,
 		"product":         product,
 		"recommendations": recommendations,
@@ -244,28 +225,18 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("view user cart")
-	currencies, err := fe.getCurrencies(r.Context())
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
-		return
-	}
+	currencies := []string{"USD"}
 	cart, err := fe.getCart(r.Context(), sessionID(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
 		return
 	}
 
-	// ignores the error retrieving recommendations since it is not critical
-	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), cartIDs(cart))
-	if err != nil {
-		log.WithField("error", err).Warn("failed to get product recommendations")
-	}
+	// No recommendations
+	recommendations := []*pb.Product{}
 
-	shippingCost, err := fe.getShippingQuote(r.Context(), cart, currentCurrency(r))
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get shipping quote"), http.StatusInternalServerError)
-		return
-	}
+	// No shipping quote
+	shippingCost := &pb.Money{CurrencyCode: "USD", Units: 0, Nanos: 0}
 
 	type cartItemView struct {
 		Item     *pb.Product
@@ -273,18 +244,14 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		Price    *pb.Money
 	}
 	items := make([]cartItemView, len(cart))
-	totalPrice := pb.Money{CurrencyCode: currentCurrency(r)}
+	totalPrice := pb.Money{CurrencyCode: "USD"}
 	for i, item := range cart {
 		p, err := fe.getProduct(r.Context(), item.GetProductId())
 		if err != nil {
 			renderHTTPError(log, r, w, errors.Wrapf(err, "could not retrieve product #%s", item.GetProductId()), http.StatusInternalServerError)
 			return
 		}
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
-		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "could not convert currency for product #%s", item.GetProductId()), http.StatusInternalServerError)
-			return
-		}
+		price := p.GetPriceUsd() // No conversion
 
 		multPrice := money.MultiplySlow(*price, uint32(item.GetQuantity()))
 		items[i] = cartItemView{
@@ -301,7 +268,7 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		"recommendations":  recommendations,
 		"cart_size":        cartSize(cart),
 		"shipping_cost":    shippingCost,
-		"show_currency":    true,
+		"show_currency":    false,
 		"total_cost":       totalPrice,
 		"items":            items,
 		"expiration_years": []int{year, year + 1, year + 2, year + 3, year + 4},
@@ -344,65 +311,45 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	order, err := pb.NewCheckoutServiceClient(fe.checkoutSvcConn).
-		PlaceOrder(r.Context(), &pb.PlaceOrderRequest{
-			Email: payload.Email,
-			CreditCard: &pb.CreditCardInfo{
-				CreditCardNumber:          payload.CcNumber,
-				CreditCardExpirationMonth: int32(payload.CcMonth),
-				CreditCardExpirationYear:  int32(payload.CcYear),
-				CreditCardCvv:             int32(payload.CcCVV)},
-			UserId:       sessionID(r),
-			UserCurrency: currentCurrency(r),
-			Address: &pb.Address{
+	// Stub: Instead of calling CheckoutService, just empty the cart
+	if err := fe.emptyCart(r.Context(), sessionID(r)); err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to complete the order"), http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("order placed (stubbed)")
+
+	// No recommendations
+	recommendations := []*pb.Product{}
+
+	// Mock order details
+	totalPaid := &pb.Money{CurrencyCode: "USD", Units: 0, Nanos: 0} // Could calculate from cart, but for simplicity
+
+	currencies := []string{"USD"}
+
+	// Mock order object
+	order := &pb.OrderResult{
+		Order: &pb.Order{
+			OrderId: "stub-order-" + sessionID(r),
+			ShippingTrackingId: "stub-tracking",
+			ShippingCost: &pb.Money{CurrencyCode: "USD", Units: 0, Nanos: 0},
+			ShippingAddress: &pb.Address{
 				StreetAddress: payload.StreetAddress,
 				City:          payload.City,
 				State:         payload.State,
 				ZipCode:       int32(payload.ZipCode),
-				Country:       payload.Country},
-		})
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to complete the order"), http.StatusInternalServerError)
-		return
-	}
-	log.WithField("order", order.GetOrder().GetOrderId()).Info("order placed")
-
-	order.GetOrder().GetItems()
-	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
-
-	totalPaid := *order.GetOrder().GetShippingCost()
-	for _, v := range order.GetOrder().GetItems() {
-		multPrice := money.MultiplySlow(*v.GetCost(), uint32(v.GetItem().GetQuantity()))
-		totalPaid = money.Must(money.Sum(totalPaid, multPrice))
-	}
-
-	currencies, err := fe.getCurrencies(r.Context())
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
-		return
+				Country:       payload.Country,
+			},
+			Items: []*pb.OrderItem{}, // Empty for simplicity
+		},
 	}
 
 	if err := templates.ExecuteTemplate(w, "order", injectCommonTemplateData(r, map[string]interface{}{
 		"show_currency":   false,
 		"currencies":      currencies,
 		"order":           order.GetOrder(),
-		"total_paid":      &totalPaid,
+		"total_paid":      totalPaid,
 		"recommendations": recommendations,
-	})); err != nil {
-		log.Println(err)
-	}
-}
-
-func (fe *frontendServer) assistantHandler(w http.ResponseWriter, r *http.Request) {
-	currencies, err := fe.getCurrencies(r.Context())
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
-		return
-	}
-
-	if err := templates.ExecuteTemplate(w, "assistant", injectCommonTemplateData(r, map[string]interface{}{
-		"show_currency": false,
-		"currencies":    currencies,
 	})); err != nil {
 		log.Println(err)
 	}
@@ -441,54 +388,6 @@ func (fe *frontendServer) getProductByID(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
-func (fe *frontendServer) chatBotHandler(w http.ResponseWriter, r *http.Request) {
-	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
-	type Response struct {
-		Message string `json:"message"`
-	}
-
-	type LLMResponse struct {
-		Content string         `json:"content"`
-		Details map[string]any `json:"details"`
-	}
-
-	var response LLMResponse
-
-	url := "http://" + fe.shoppingAssistantSvcAddr
-	req, err := http.NewRequest(http.MethodPost, url, r.Body)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to create request"), http.StatusInternalServerError)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to send request"), http.StatusInternalServerError)
-		return
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to read response"), http.StatusInternalServerError)
-		return
-	}
-
-	fmt.Printf("%+v\n", body)
-	fmt.Printf("%+v\n", res)
-
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to unmarshal body"), http.StatusInternalServerError)
-		return
-	}
-
-	// respond with the same message
-	json.NewEncoder(w).Encode(Response{Message: response.Content})
-
-	w.WriteHeader(http.StatusOK)
-}
-
 func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	cur := r.FormValue("currency_code")
@@ -515,15 +414,9 @@ func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusFound)
 }
 
-// chooseAd queries for advertisements available and randomly chooses one, if
-// available. It ignores the error retrieving the ad since it is not critical.
+// chooseAd is disabled since AdService is not available
 func (fe *frontendServer) chooseAd(ctx context.Context, ctxKeys []string, log logrus.FieldLogger) *pb.Ad {
-	ads, err := fe.getAd(ctx, ctxKeys)
-	if err != nil {
-		log.WithField("error", err).Warn("failed to retrieve ads")
-		return nil
-	}
-	return ads[rand.Intn(len(ads))]
+	return nil
 }
 
 func renderHTTPError(log logrus.FieldLogger, r *http.Request, w http.ResponseWriter, err error, code int) {

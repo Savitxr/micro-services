@@ -67,6 +67,7 @@ services:
       PORT: 8080
       PRODUCT_CATALOG_SERVICE_ADDR: product-catalog:3550
       CART_SERVICE_ADDR: cart-service:7070
+      SHOPPING_ASSISTANT_SERVICE_ADDR: shopping-assistant:8080
       CURRENCY_SERVICE_ADDR: currency-service:7000
       RECOMMENDATION_SERVICE_ADDR: recommendation-service:8081
       CHECKOUT_SERVICE_ADDR: checkout-service:5050
