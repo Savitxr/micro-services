@@ -67,17 +67,61 @@ services:
       PORT: 8080
       PRODUCT_CATALOG_SERVICE_ADDR: product-catalog:3550
       CART_SERVICE_ADDR: cart-service:7070
-      SHOPPING_ASSISTANT_SERVICE_ADDR: shopping-assistant:8080
-      CURRENCY_SERVICE_ADDR: currency-service:7000
-      RECOMMENDATION_SERVICE_ADDR: recommendation-service:8081
-      CHECKOUT_SERVICE_ADDR: checkout-service:5050
-      SHIPPING_SERVICE_ADDR: shipping-service:50051
-      AD_SERVICE_ADDR: ad-service:9555
+      # Removed env vars for missing services to avoid mustMapEnv panics
     ports:
       - "8080:8080"
     depends_on:
       - product-catalog
       - cart-service
+    networks:
+      - learning-k8s-net
+
+  # Dummy services to satisfy DNS lookups (prevents "no such host" errors)
+  currency-service:
+    image: alpine:latest
+    command: ["sh", "-c", "while true; do sleep 1; done"]
+    ports:
+      - "7000:7000"
+    networks:
+      - learning-k8s-net
+
+  recommendation-service:
+    image: alpine:latest
+    command: ["sh", "-c", "while true; do sleep 1; done"]
+    ports:
+      - "8081:8081"
+    networks:
+      - learning-k8s-net
+
+  checkout-service:
+    image: alpine:latest
+    command: ["sh", "-c", "while true; do sleep 1; done"]
+    ports:
+      - "5050:5050"
+    networks:
+      - learning-k8s-net
+
+  shipping-service:
+    image: alpine:latest
+    command: ["sh", "-c", "while true; do sleep 1; done"]
+    ports:
+      - "50051:50051"
+    networks:
+      - learning-k8s-net
+
+  ad-service:
+    image: alpine:latest
+    command: ["sh", "-c", "while true; do sleep 1; done"]
+    ports:
+      - "9555:9555"
+    networks:
+      - learning-k8s-net
+
+  shopping-assistant:
+    image: alpine:latest
+    command: ["sh", "-c", "while true; do sleep 1; done"]
+    ports:
+      - "8081:8080"  # Avoid conflict with frontend
     networks:
       - learning-k8s-net
 
