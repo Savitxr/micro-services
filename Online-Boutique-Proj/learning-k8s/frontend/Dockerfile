@@ -3,6 +3,7 @@ WORKDIR /src
 COPY ./frontend/go.mod ./frontend/go.sum ./
 RUN go mod download
 RUN apk add --no-cache protoc
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 COPY ./protos ./protos
 COPY ./frontend/ ./
 # Generate protobuf files (fixes undefined types like pb.Order)
