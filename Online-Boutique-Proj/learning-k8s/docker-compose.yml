@@ -44,7 +44,7 @@ services:
 
   cart-service:
     build:
-      context: ./services/cart
+      context: ./services/cart/src
       dockerfile: Dockerfile
     container_name: learning-k8s-cart
     environment:
