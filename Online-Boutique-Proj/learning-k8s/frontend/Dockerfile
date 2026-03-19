@@ -2,8 +2,10 @@ FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
+COPY ../protos ./protos
 COPY . .
 # Generate protobuf files (fixes undefined types like pb.Order)
+RUN sed -i 's|protodir=../../protos|protodir=./protos|g' genproto.sh
 RUN chmod +x genproto.sh && ./genproto.sh
 # Remove mustMapEnv calls for missing services to avoid panics on unset env vars
 RUN sed -i '/mustMapEnv.*CURRENCY_SERVICE_ADDR/d' main.go && \
