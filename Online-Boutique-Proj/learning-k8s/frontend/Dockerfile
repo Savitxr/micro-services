@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /go/bin/frontend .
 FROM gcr.io/distroless/static
 WORKDIR /src
 COPY --from=builder /go/bin/frontend /src/server
-COPY ./templates ./templates
-COPY ./static ./static
+COPY ./frontend/templates ./templates
+COPY ./frontend/static ./static
 EXPOSE 8080
 ENTRYPOINT ["/src/server"]
