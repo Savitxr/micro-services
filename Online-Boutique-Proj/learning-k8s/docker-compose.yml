@@ -121,7 +121,7 @@ services:
     image: alpine:latest
     command: ["sh", "-c", "while true; do sleep 1; done"]
     ports:
-      - "8081:8080"  # Avoid conflict with frontend
+      - "8082:8080"  # Avoid conflict with recommendation-service on 8081
     networks:
       - learning-k8s-net
 
