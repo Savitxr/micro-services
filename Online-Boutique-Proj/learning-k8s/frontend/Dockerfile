@@ -7,9 +7,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && go install
 COPY ./protos ./protos
 COPY ./frontend/ ./
 # Generate protobuf files (fixes undefined types like pb.Order)
-RUN sed -i 's/\r$//' genproto.sh
-RUN sed -i 's|protodir=../../protos|protodir=./protos|g' genproto.sh
-RUN chmod +x genproto.sh && ./genproto.sh
+RUN PATH=$PATH:$(go env GOPATH)/bin && protoc --proto_path=./protos --go_out=./genproto --go_opt=paths=source_relative --go-grpc_out=./genproto --go-grpc_opt=paths=source_relative ./protos/demo.proto
 # Remove mustMapEnv calls for missing services to avoid panics on unset env vars
 RUN sed -i '/mustMapEnv.*CURRENCY_SERVICE_ADDR/d' main.go && \
     sed -i '/mustMapEnv.*RECOMMENDATION_SERVICE_ADDR/d' main.go && \
