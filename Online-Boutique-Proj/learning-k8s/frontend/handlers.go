@@ -12,8 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -329,25 +327,23 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 
 	// Mock order object
 	order := &pb.OrderResult{
-		Order: &pb.Order{
-			OrderId: "stub-order-" + sessionID(r),
-			ShippingTrackingId: "stub-tracking",
-			ShippingCost: &pb.Money{CurrencyCode: "USD", Units: 0, Nanos: 0},
-			ShippingAddress: &pb.Address{
-				StreetAddress: payload.StreetAddress,
-				City:          payload.City,
-				State:         payload.State,
-				ZipCode:       int32(payload.ZipCode),
-				Country:       payload.Country,
-			},
-			Items: []*pb.OrderItem{}, // Empty for simplicity
+		OrderId:            "stub-order-" + sessionID(r),
+		ShippingTrackingId: "stub-tracking",
+		ShippingCost:       &pb.Money{CurrencyCode: "USD", Units: 0, Nanos: 0},
+		ShippingAddress: &pb.Address{
+			StreetAddress: payload.StreetAddress,
+			City:          payload.City,
+			State:         payload.State,
+			ZipCode:       int32(payload.ZipCode),
+			Country:       payload.Country,
 		},
+		Items: []*pb.OrderItem{}, // Empty for simplicity
 	}
 
 	if err := templates.ExecuteTemplate(w, "order", injectCommonTemplateData(r, map[string]interface{}{
 		"show_currency":   false,
 		"currencies":      currencies,
-		"order":           order.GetOrder(),
+		"order":           order,
 		"total_paid":      totalPaid,
 		"recommendations": recommendations,
 	})); err != nil {

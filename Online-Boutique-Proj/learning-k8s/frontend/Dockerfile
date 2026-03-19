@@ -22,8 +22,7 @@ RUN sed -i '/mustConnGRPC.*currencySvcConn/d' main.go && \
     sed -i '/mustConnGRPC.*shippingSvcConn/d' main.go && \
     sed -i '/mustConnGRPC.*adSvcConn/d' main.go
 # Remove unused imports if they persist (adjust based on exact errors)
-RUN sed -i '/"math\/rand"/d' handlers.go && \
-    sed -i '/"time"/d' handlers.go
+RUN sed -i '/"math\/rand"/d' handlers.go
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /go/bin/frontend .
 FROM gcr.io/distroless/static
 WORKDIR /src
