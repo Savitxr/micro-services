@@ -2,6 +2,7 @@ FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f
 WORKDIR /src
 COPY ./frontend/go.mod ./frontend/go.sum ./
 RUN go mod download
+RUN apk add --no-cache protoc
 COPY ./protos ./protos
 COPY ./frontend/ ./
 # Generate protobuf files (fixes undefined types like pb.Order)
