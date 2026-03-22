@@ -24,8 +24,8 @@ services:
 
   product-catalog:
     build:
-      context: ./services/product-catalog
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/product-catalog/Dockerfile
     container_name: learning-k8s-product-catalog
     environment:
       PORT: 3550
